@@ -19,6 +19,7 @@ const allBrokers = [
   { id: 'fivepaisaxts', name: '5 Paisa (XTS)', authType: 'totp' },
   { id: 'aliceblue', name: 'Alice Blue', authType: 'totp' },
   { id: 'angel', name: 'Angel One', authType: 'totp' },
+  { id: 'arrow', name: 'Arrow', authType: 'oauth' },
   { id: 'compositedge', name: 'CompositEdge', authType: 'oauth' },
   { id: 'dhan', name: 'Dhan', authType: 'oauth' },
   { id: 'deltaexchange', name: 'Delta Exchange', authType: 'totp' },
@@ -186,6 +187,11 @@ export default function BrokerSelect() {
         loginUrl = `https://kite.trade/connect/login?api_key=${broker_api_key}`
         break
 
+      case 'arrow':
+        // Arrow hosted login; redirects back to /arrow/callback with request-token.
+        loginUrl = `https://app.arrow.trade/app/login?appID=${broker_api_key}`
+        break
+
       case 'paytm':
         loginUrl = `https://login.paytmmoney.com/merchant-login?apiKey=${broker_api_key}&state={default}`
         break
@@ -268,7 +274,7 @@ export default function BrokerSelect() {
                 {(selectedBroker === 'zerodha' || selectedBroker === 'dhan') && (
                   <Alert className="border-amber-500/50 bg-amber-500/10">
                     <Info className="h-4 w-4 text-amber-500" />
-                    <AlertDescription className="text-amber-200">
+                    <AlertDescription className="text-amber-700 dark:text-amber-400">
                       {selectedBroker === 'zerodha'
                         ? 'Zerodha requires an active Kite Connect data subscription for market data access.'
                         : 'Dhan requires an active Data API subscription for market data access.'}

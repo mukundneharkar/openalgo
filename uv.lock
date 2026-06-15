@@ -1532,7 +1532,7 @@ wheels = [
 
 [[package]]
 name = "openalgo"
-version = "2.0.0"
+version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -1540,18 +1540,18 @@ dependencies = [
     { name = "pandas" },
     { name = "websocket-client" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/de/1b/cb25cec40084e552426947067d8e9507091d7e8dafa614b23b9a9171d144/openalgo-2.0.0.tar.gz", hash = "sha256:685cc5dab5406b93591dbbd8a71a9150f1c2dc9cbf9e551361a8a7f9eddbbb9a", size = 152637, upload-time = "2026-05-29T05:51:20.179Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/2d/7ba90b847ee02092a5d37458a49f68f0fa8b577bb8b28483e5f130430a0b/openalgo-2.0.1.tar.gz", hash = "sha256:984ab931707ebd95ecd1081e514340db8661d39ba9b15aba51a09b08fe921e9f", size = 153161, upload-time = "2026-06-08T23:51:14.454Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cb/2d/9f0c808a0b2f27ed084629d401cc5089e3fc2b039a8cec57bd9f6c5c83bb/openalgo-2.0.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:94e69b743eadd48d6c0822d890f71b2c9e9886be26030a189c9c4b10fb9c2b1b", size = 437812, upload-time = "2026-05-29T05:40:21.974Z" },
-    { url = "https://files.pythonhosted.org/packages/7e/b0/ddc04d3ae1fa9e7c6b9a091cd225033cd7a19adb99808b0f8f01a2ffc989/openalgo-2.0.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:9dc1899e790daa522450eaa1fa647c595df8ad09d4dc033f16158c4ec55c745b", size = 420117, upload-time = "2026-05-29T05:40:23.396Z" },
-    { url = "https://files.pythonhosted.org/packages/e8/b6/68d2d0e01685147d6087285316c67bb9a3a9220d6716946b866418b57ade/openalgo-2.0.0-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:41c44aabfaf3dbb912662eb6b40d9c22254d6c5f6d49fc14a957d7abc0b12d29", size = 431257, upload-time = "2026-05-29T05:40:24.664Z" },
-    { url = "https://files.pythonhosted.org/packages/c2/66/e2b011540970793cde2f77d7a014bf36929b3cab7b3b8036b79fcdc49842/openalgo-2.0.0-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:632427225e2054163e78c3238029058f8f10e29f0b684e5e3942180327025443", size = 452888, upload-time = "2026-05-29T05:40:25.894Z" },
-    { url = "https://files.pythonhosted.org/packages/fe/4b/74b480393d828b2e5adc0e4d14a1daf3bf94706ba99d23c91255a5d59a8c/openalgo-2.0.0-cp39-abi3-win_amd64.whl", hash = "sha256:fc7f60bb0feaca5e1b427ba5653734be703edf038b8690df220e43859f5aa9ab", size = 397135, upload-time = "2026-05-29T05:40:27.171Z" },
+    { url = "https://files.pythonhosted.org/packages/16/35/e73f95b6f8069b437dbbe04a0429a74f5614dd5d05e25b6d4fa386b158df/openalgo-2.0.1-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:f812493d261a72dce1c4327d58bc8e9e311da89e938bcb2c97cbd0d0c4843f5a", size = 438355, upload-time = "2026-06-08T23:51:06.676Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/77/3c9b86285ad7c4cfb6957c8298851d573fdfdeb2799450d13fd502d14874/openalgo-2.0.1-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:b3a3569c719bddb698e0dbbd7ec0f48145b5f6210724ae6515092555fa22dc39", size = 420657, upload-time = "2026-06-08T23:51:08.377Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/74/f208f29ba706991f47c9a5f545ec8e6890c85859372d7673d51a21ae801a/openalgo-2.0.1-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:45d06ebac3a3180352bd7a033ee1426734d669c01bb31d443b8a63212c5d5241", size = 431797, upload-time = "2026-06-08T23:51:09.973Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/98/a7d9c187f84aff90af361ecd5bacc76f2a603e7b7dd414ec82a434c49515/openalgo-2.0.1-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:0ade85143d37ab74a19e0100de4d07ef6c9689a11fbe897975823261b9593216", size = 453426, upload-time = "2026-06-08T23:51:11.49Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/3f/26a953328c9ef41d3c5a80c6a021af50838b01c767a7e035eb4aa3f8fe2f/openalgo-2.0.1-cp39-abi3-win_amd64.whl", hash = "sha256:e88aa321d846febc6c5840f9b42c049ae80ae2222a2a9e74265d46c5bfa27d2c", size = 397377, upload-time = "2026-06-08T23:51:12.913Z" },
 ]
 
 [[package]]
 name = "openalgoui"
-version = "2.0.1.2"
+version = "2.0.1.3"
 source = { editable = "." }
 dependencies = [
     { name = "aniso8601" },
@@ -1790,8 +1790,8 @@ requires-dist = [
     { name = "nbformat", specifier = "==5.10.4" },
     { name = "nest-asyncio", specifier = "==1.6.0" },
     { name = "numpy", specifier = "==2.4.4" },
-    { name = "openalgo", specifier = "==2.0.0" },
-    { name = "opengreeks", specifier = ">=0.1.0" },
+    { name = "openalgo", specifier = "==2.0.1" },
+    { name = "opengreeks", specifier = ">=0.2.0" },
     { name = "ordered-set", specifier = "==4.1.0" },
     { name = "orjson", specifier = "==3.11.8" },
     { name = "packaging", specifier = "==24.1" },
@@ -1840,7 +1840,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = "==2.0.49" },
     { name = "sse-starlette", specifier = "==2.4.1" },
     { name = "stack-data", specifier = "==0.6.3" },
-    { name = "starlette", specifier = "==0.52.1" },
+    { name = "starlette", specifier = "==1.0.1" },
     { name = "tornado", specifier = "==6.5.5" },
     { name = "traitlets", specifier = "==5.14.3" },
     { name = "typing-extensions", specifier = ">=4.12.2" },
@@ -1849,7 +1849,7 @@ requires-dist = [
     { name = "tzlocal", specifier = "==5.3.1" },
     { name = "urllib3", specifier = "==2.7.0" },
     { name = "uvicorn", specifier = "==0.44.0" },
-    { name = "wars", specifier = "==0.1.3" },
+    { name = "wars", specifier = "==0.1.4" },
     { name = "wcwidth", specifier = "==0.6.0" },
     { name = "websocket-client", specifier = "==1.9.0" },
     { name = "websockets", specifier = "==15.0.1" },
@@ -1874,18 +1874,18 @@ dev = [
 
 [[package]]
 name = "opengreeks"
-version = "0.1.0"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/28/8d/a132bacb880b6d36b442ca7c2255e9c640c1653affb357880879be58a039/opengreeks-0.1.0.tar.gz", hash = "sha256:9b3fb1d66344e5ee2818062f3ae48ba3479fb4ccd28e33332197de24ef586bdb", size = 29335, upload-time = "2026-05-20T16:25:32.102Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/31/d7886e613d822b92556dde7c132a598585d8f50c2c89be4323021ffa11d4/opengreeks-0.2.0.tar.gz", hash = "sha256:7367aff980cbb48346b9d9a25da04122bc1bc8f19b3203cd94af2bfae0cbe15b", size = 39730, upload-time = "2026-05-31T16:46:02.876Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/be/dd/933168c426aebb55fd29637c81e2e275bd4c276092c3c282bff60fe173b5/opengreeks-0.1.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:d61c9d8549e8888acc8f1d9014e0322a00166b66f8ce60ca0a558e0de8135de6", size = 239599, upload-time = "2026-05-20T16:25:23.49Z" },
-    { url = "https://files.pythonhosted.org/packages/6a/d3/6b4be23a1ce62fefa789a501ed34c05ffdd7e1ff23a43881808d734d2505/opengreeks-0.1.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:d6df4a367dc006825eb710af59edeeed6cd1fb5db55192a6fbd977b4ab1bdeaf", size = 230266, upload-time = "2026-05-20T16:25:25.515Z" },
-    { url = "https://files.pythonhosted.org/packages/87/3b/4a74f2ad960d4cd5bbccb4509a730aa7737756b971fe98256a79f709c3e0/opengreeks-0.1.0-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:0d5b5a0a85e8df2805930f4a50f4884ee3c7602f21d5f11b06ffc2fd48608cc6", size = 242778, upload-time = "2026-05-20T16:25:27.013Z" },
-    { url = "https://files.pythonhosted.org/packages/73/99/890a39043f020edc2540483c345b4375c5415456fcada3dda2140f7a92f0/opengreeks-0.1.0-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:c19655f534141a7992000f558eebd48503645be6521d179c17b763162ccae78a", size = 252470, upload-time = "2026-05-20T16:25:28.976Z" },
-    { url = "https://files.pythonhosted.org/packages/2b/13/6fc5a45975533a9d6dea9968bbc25ff071a6a4f0b10b3693151177203a82/opengreeks-0.1.0-cp39-abi3-win_amd64.whl", hash = "sha256:9645ecd4a493d5982b33ffd2382b22a48f4ce4b837cf102487a57478223acab2", size = 184047, upload-time = "2026-05-20T16:25:30.36Z" },
+    { url = "https://files.pythonhosted.org/packages/93/6d/1a5566c1816d9c40782c1094b696934517cf1ac1e4063f5f995ac8feac52/opengreeks-0.2.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:648ffb8f1bf52458f19c8457a3761fd78b5c44281e20715e4ca47f0f5bb80f3f", size = 281190, upload-time = "2026-05-31T16:45:56.029Z" },
+    { url = "https://files.pythonhosted.org/packages/e6/7b/6716bf5ebcd22a579cb036d415a547ae55a4f7729114e089ba9588799844/opengreeks-0.2.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:7379af064ace12513a9a945ea8757e5a2fe231f6b77abf175994f2353a457b8e", size = 264626, upload-time = "2026-05-31T16:45:57.529Z" },
+    { url = "https://files.pythonhosted.org/packages/15/2f/61f158c13c4d48a7dca84fd0976331612166eb1e6e7571f2d97b67651965/opengreeks-0.2.0-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:0302759a7ea17c023923ae02e20f7f4fb53033ee11c3b69dd026db11f6c31ffb", size = 277027, upload-time = "2026-05-31T16:45:58.829Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/f9/2a01f49db7771bf1c112ef94c9732dbd36bf2a0f81c4c8efea87745b6f50/opengreeks-0.2.0-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:bb832b3bfeaa89d9b4bd698d738d44a69eff1e7006ee84ec9cc49f3cd3d8bd21", size = 295199, upload-time = "2026-05-31T16:46:00.241Z" },
+    { url = "https://files.pythonhosted.org/packages/08/a7/e27dd79c3ef892ac955084e91de85764ad924fc845a9d7de37d96668066f/opengreeks-0.2.0-cp39-abi3-win_amd64.whl", hash = "sha256:5a4ff92ddd6bd9268b5cf0b94a3e4069b5170445604fe91e9303a5ae896bdda2", size = 248164, upload-time = "2026-05-31T16:46:01.543Z" },
 ]
 
 [[package]]
@@ -3039,15 +3039,15 @@ wheels = [
 
 [[package]]
 name = "starlette"
-version = "0.52.1"
+version = "1.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/68/79977123bb7be889ad680d79a40f339082c1978b5cfcf62c2d8d196873ac/starlette-0.52.1.tar.gz", hash = "sha256:834edd1b0a23167694292e94f597773bc3f89f362be6effee198165a35d62933", size = 2653702, upload-time = "2026-01-18T13:34:11.062Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/08/a3/84e821cc54b4ab50ae6dbc6ac3800a651b65ec35f045cc73785380654057/starlette-1.0.1.tar.gz", hash = "sha256:512399c5f1de7fac99c88572212ded9ddeddef2fb32afa82d724000e88b38f4f", size = 2659596, upload-time = "2026-05-21T21:58:58.433Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/81/0d/13d1d239a25cbfb19e740db83143e95c772a1fe10202dda4b76792b114dd/starlette-0.52.1-py3-none-any.whl", hash = "sha256:0029d43eb3d273bc4f83a08720b4912ea4b071087a3b48db01b7c839f7954d74", size = 74272, upload-time = "2026-01-18T13:34:09.188Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/e1/b2df4bc09a1e51ff664c1e17018a4274b42e5e9352e4a478ea540512dc88/starlette-1.0.1-py3-none-any.whl", hash = "sha256:7c0e69b2ee1c848bd54669d908500117a3ee13de603a21427e5c6fc1adf98dcd", size = 72802, upload-time = "2026-05-21T21:58:56.551Z" },
 ]
 
 [[package]]
@@ -3205,17 +3205,17 @@ wheels = [
 
 [[package]]
 name = "wars"
-version = "0.1.3"
+version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "qrcode", extra = ["pil"] },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/9c/c801518ec5b3edd5695601cccaac9eabcd4d702f111839072da2c4e97b3e/wars-0.1.3-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:31b261f52a8df71a3888f0c600bf577e195035ebcb2f2ab3cdf933de2d7520a1", size = 6485955, upload-time = "2026-05-17T02:13:11.852Z" },
-    { url = "https://files.pythonhosted.org/packages/a1/dc/28ddb0ccff13f34864ebbf57bacf3a703f03171f8628b44ce219ecc320e2/wars-0.1.3-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:bf5f827106b9ca575e910eaf9542d95ffc8429ab14eb7f419e4409aeb0ceba56", size = 6082421, upload-time = "2026-05-17T02:13:14.284Z" },
-    { url = "https://files.pythonhosted.org/packages/44/01/024d3898c6bc6c895f243e900fe431bbe5bbffa4a0e401bc3d75be279f77/wars-0.1.3-cp38-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:aba35e9331bc0644ea535e0e2a99f169d8fce467680ccde89fa0823f79dfc44a", size = 6222786, upload-time = "2026-05-17T02:13:16.321Z" },
-    { url = "https://files.pythonhosted.org/packages/53/6a/18852e5159004246b00f836b3481e2a028aba50e02d6c3f71b63b746ede6/wars-0.1.3-cp38-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:3fd4a40822a301f727b620c2e59ef04c86e65b6d36a80c446e6a0718244a112a", size = 6743583, upload-time = "2026-05-17T02:13:18.599Z" },
-    { url = "https://files.pythonhosted.org/packages/78/cb/d0820994018014527f048b8f321d3064dd1c0a261e4f257ed9ff136b4810/wars-0.1.3-cp38-abi3-win_amd64.whl", hash = "sha256:612d5bdf5a0d934d064ae4c0d8c549dbd065afac6a039f816a5a5d6fb7f122bd", size = 7015317, upload-time = "2026-05-17T02:13:20.5Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/4b/18b40e2ab13318c42f560f21d73d0759c1dea7a18b29ec7efabe644b2408/wars-0.1.4-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:6269e23f26005a6325787f2cbd301fcc8e22da024d768b6856978690636ff340", size = 6181615, upload-time = "2026-06-14T17:45:54.87Z" },
+    { url = "https://files.pythonhosted.org/packages/03/ad/01be49827393520185734a669f627f8924bbac9dff111102dae40d69d3d8/wars-0.1.4-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:570e41aebd6777f70df38d2fb98ea38ac26664dc34ccb949b21a4efd207986aa", size = 5790476, upload-time = "2026-06-14T17:45:57.04Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/9d/21ce3ad24b8429d107d12ca9f02ebafd0353f38023e8e8458c76824e2709/wars-0.1.4-cp38-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:a5d0de216e17ff18486626b977e15425d9218cfd0ba2caeb28ea3a5d59818648", size = 5912616, upload-time = "2026-06-14T17:45:59.244Z" },
+    { url = "https://files.pythonhosted.org/packages/b0/e6/62a29d50a6c518f309ef0e4c185adc5c3bfaae6d5ebbc5e67f25cac2251e/wars-0.1.4-cp38-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:6a10d382f3ba818234a03ea7baaced87bcefee07379465baccff459c14c228a1", size = 6430810, upload-time = "2026-06-14T17:46:01.707Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/6c/974993ccc855fb1032b10a1029c249cc4a77d276cc9df544c0c812ac3b6b/wars-0.1.4-cp38-abi3-win_amd64.whl", hash = "sha256:02a2ecd1df3d6ec56d929939344d1e4513faccc06385b05bf1ce11fbe0f79779", size = 6745831, upload-time = "2026-06-14T17:46:03.415Z" },
 ]
 
 [[package]]

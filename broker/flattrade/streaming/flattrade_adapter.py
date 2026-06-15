@@ -359,7 +359,7 @@ class FlattradeWebSocketAdapter(BaseBrokerWebSocketAdapter):
             self.actid = user_id
 
         # Get auth token from database
-        self.accesstoken = get_auth_token(user_id)
+        self.accesstoken = get_auth_token(user_id, bypass_cache=True)
 
         if not self.actid or not self.accesstoken:
             self.logger.error(f"Missing Flattrade credentials for user {user_id}")
@@ -841,6 +841,17 @@ class FlattradeWebSocketAdapter(BaseBrokerWebSocketAdapter):
                     except Exception as cleanup_err:
                         self.logger.warning(f"Error cleaning up old WebSocket: {cleanup_err}")
                     self.ws_client = None
+
+                # Re-read fresh auth token from database before reconnecting.
+                # Flattrade tokens roll over daily at ~3 AM IST; reusing the
+                # construction-time token would reconnect with a dead token.
+                fresh_token = get_auth_token(self.user_id, bypass_cache=True)
+                if fresh_token:
+                    self.accesstoken = fresh_token
+                else:
+                    self.logger.warning(
+                        "Could not fetch fresh auth token on reconnect; using existing token"
+                    )
 
                 # Recreate WebSocket client
                 self.ws_client = FlattradeWebSocket(
