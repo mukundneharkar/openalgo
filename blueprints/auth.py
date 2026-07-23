@@ -281,10 +281,17 @@ def login():
             session.clear()
 
         if "user" in session:
-            logger.info("[LOGIN] User in session but not logged_in, redirecting to /broker")
-            return jsonify(
-                {"status": "success", "message": "Already logged in", "redirect": "/broker"}
-            ), 200
+            existing_username = session.get("user")
+            logger.info(
+                f"[LOGIN] User in session but not logged_in; attempting broker resume for {existing_username}"
+            )
+            resumed = _try_resume_broker_session(existing_username)
+            if resumed:
+                logger.info("[LOGIN] Returning partial-session resume response to frontend")
+                return resumed
+
+            logger.info("[LOGIN] Partial session could not resume; clearing before password login")
+            session.clear()
 
         username = request.form["username"]
         password = request.form["password"]
@@ -927,6 +934,30 @@ def get_session_status():
             {"status": "success", "message": "Not authenticated", "authenticated": False, "logged_in": False}
         ), 200
 
+    if not session.get("logged_in"):
+        username = session.get("user")
+        logger.info(
+            f"Session status: partial app session for {username}; attempting broker resume"
+        )
+        resumed = _try_resume_broker_session(username)
+        if resumed:
+            from database.auth_db import get_active_sessions, get_api_key_for_tradingview
+
+            api_key = get_api_key_for_tradingview(username)
+            active_count = len(get_active_sessions(username))
+            return jsonify(
+                {
+                    "status": "success",
+                    "authenticated": True,
+                    "logged_in": True,
+                    "user": username,
+                    "broker": session.get("broker"),
+                    "api_key": api_key,
+                    "active_sessions": active_count,
+                    "message": "Broker session resumed",
+                }
+            ), 200
+
     # If session claims to be logged in with broker, validate the auth token exists
     if session.get("logged_in") and session.get("broker"):
         from database.auth_db import get_api_key_for_tradingview, get_auth_token
@@ -1236,6 +1267,10 @@ def logout():
         # Clear entire session to ensure complete logout
         session.clear()
         logger.info(f"Session cleared for user: {username}")
+    elif session:
+        username = session.get("user") or session.get("pending_totp_user") or "<unknown>"
+        session.clear()
+        logger.info(f"Partial session cleared for user: {username}")
 
     # For POST requests (AJAX from React), return JSON
     if request.method == "POST":

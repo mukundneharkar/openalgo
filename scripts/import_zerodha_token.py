@@ -12,7 +12,7 @@ Usage:
     python scripts/import_zerodha_token.py \
       --token-file ~/.zerodha_token.json \
       --account Mukund \
-      --openalgo-user Mukund
+      --openalgo-user mukundneharkar
 """
 
 from __future__ import annotations
@@ -126,7 +126,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--openalgo-user",
-        help="OpenAlgo username/auth row to update. Defaults to account_name, then --account.",
+        default=os.getenv("OPENALGO_IMPORT_USER", "mukundneharkar"),
+        help="OpenAlgo username/auth row to update. Default: OPENALGO_IMPORT_USER or mukundneharkar.",
     )
     parser.add_argument(
         "--allow-stale",
@@ -147,6 +148,16 @@ def parse_args() -> argparse.Namespace:
         "--dry-run",
         action="store_true",
         help="Validate and show what would be updated without writing to the DB.",
+    )
+    parser.add_argument(
+        "--strict-openalgo-user",
+        action="store_true",
+        help="Fail if --openalgo-user is not an existing OpenAlgo login username.",
+    )
+    parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Show OpenAlgo user/auth status for --openalgo-user without importing a token.",
     )
     return parser.parse_args()
 
@@ -289,6 +300,122 @@ def update_openalgo_auth(
     )
 
 
+def get_openalgo_usernames() -> list[str]:
+    try:
+        from database.user_db import User
+
+        return [str(user.username) for user in User.query.order_by(User.username.asc()).all()]
+    except Exception:
+        return get_openalgo_usernames_direct_sqlite()
+
+
+def get_openalgo_usernames_direct_sqlite() -> list[str]:
+    db_path = resolve_sqlite_db_path()
+    if not db_path.exists():
+        return []
+
+    with sqlite3.connect(db_path) as conn:
+        table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'users'"
+        ).fetchone()
+        if not table:
+            return []
+        rows = conn.execute("SELECT username FROM users ORDER BY username").fetchall()
+        return [str(row[0]) for row in rows]
+
+
+def get_auth_row_status(openalgo_user: str) -> dict[str, Any] | None:
+    try:
+        from database.auth_db import Auth
+
+        auth_obj = Auth.query.filter_by(name=openalgo_user).first()
+        if not auth_obj:
+            return None
+        return {
+            "id": auth_obj.id,
+            "name": auth_obj.name,
+            "broker": auth_obj.broker,
+            "user_id": auth_obj.user_id,
+            "is_revoked": bool(auth_obj.is_revoked),
+            "has_auth": bool(auth_obj.auth),
+            "has_feed_token": bool(auth_obj.feed_token),
+        }
+    except Exception:
+        return get_auth_row_status_direct_sqlite(openalgo_user)
+
+
+def get_auth_row_status_direct_sqlite(openalgo_user: str) -> dict[str, Any] | None:
+    db_path = resolve_sqlite_db_path()
+    if not db_path.exists():
+        return None
+
+    with sqlite3.connect(db_path) as conn:
+        table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'auth'"
+        ).fetchone()
+        if not table:
+            return None
+        row = conn.execute(
+            """
+            SELECT id, name, broker, user_id, is_revoked, auth, feed_token
+              FROM auth
+             WHERE name = ?
+            """,
+            (openalgo_user,),
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "name": row[1],
+            "broker": row[2],
+            "user_id": row[3],
+            "is_revoked": bool(row[4]),
+            "has_auth": bool(row[5]),
+            "has_feed_token": bool(row[6]),
+        }
+
+
+def warn_or_fail_if_openalgo_user_missing(openalgo_user: str, strict: bool) -> bool:
+    usernames = get_openalgo_usernames()
+    exists = openalgo_user in usernames
+    if exists:
+        return True
+
+    available = ", ".join(usernames) if usernames else "<none found>"
+    message = (
+        f"OpenAlgo username {openalgo_user!r} was not found in the users table. "
+        "The broker token can be stored, but browser login resume only works when "
+        "--openalgo-user exactly matches the OpenAlgo web-login username. "
+        f"Available users: {available}"
+    )
+    if strict:
+        raise ValueError(message)
+    print(f"WARNING: {message}", file=sys.stderr)
+    return False
+
+
+def print_status(openalgo_user: str) -> None:
+    usernames = get_openalgo_usernames()
+    auth_row = get_auth_row_status(openalgo_user)
+    env_api_key = (os.getenv("BROKER_API_KEY") or "").strip()
+
+    print("OpenAlgo auth status.")
+    print(f"  database       : {os.getenv('DATABASE_URL') or '<unset>'}")
+    print(f"  openalgo_user  : {openalgo_user}")
+    print(f"  user exists    : {'yes' if openalgo_user in usernames else 'no'}")
+    print(f"  users          : {', '.join(usernames) if usernames else '<none found>'}")
+    print(f"  broker         : {auth_row.get('broker') if auth_row else '<no auth row>'}")
+    print(f"  auth row       : {'yes' if auth_row else 'no'}")
+    if auth_row:
+        print(f"  auth_row_id    : {auth_row.get('id')}")
+        print(f"  revoked        : {'yes' if auth_row.get('is_revoked') else 'no'}")
+        print(f"  has_auth       : {'yes' if auth_row.get('has_auth') else 'no'}")
+        print(f"  feed_token     : {'yes' if auth_row.get('has_feed_token') else 'no'}")
+        print(f"  zerodha_user   : {auth_row.get('user_id') or '<unknown>'}")
+    print(f"  env api_key    : {mask(env_api_key)}")
+
+
 def update_openalgo_auth_direct_sqlite(
     openalgo_user: str,
     record: TokenRecord,
@@ -424,9 +551,18 @@ def main() -> int:
     args = parse_args()
     load_env()
 
+    if args.status:
+        print_status(args.openalgo_user)
+        return 0
+
     payload = read_json(args.token_file)
     record = select_token_record(payload, args.account)
     openalgo_user = args.openalgo_user or record.account_name or record.account_key
+
+    openalgo_user_exists = warn_or_fail_if_openalgo_user_missing(
+        openalgo_user=openalgo_user,
+        strict=args.strict_openalgo_user,
+    )
 
     validate_timestamp(record, allow_stale=args.allow_stale)
 
@@ -457,6 +593,7 @@ def main() -> int:
     print(f"  account        : {record.account_key}")
     print(f"  openalgo_user  : {openalgo_user}")
     print("  broker         : zerodha")
+    print(f"  user exists    : {'yes' if openalgo_user_exists else 'no'}")
     print(f"  api_key        : {mask(record.api_key)}")
     print(f"  env key match  : {'yes' if env_api_key == record.api_key else 'no'}")
     print(f"  validated      : {'no' if args.no_validate else 'yes'}")
