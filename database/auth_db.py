@@ -264,6 +264,7 @@ class LoginAttempt(Base):
 def _now_ist():
     """Get current time in IST."""
     from datetime import datetime
+
     import pytz
     return datetime.now(pytz.timezone("Asia/Kolkata"))
 
@@ -512,6 +513,33 @@ def upsert_auth(name, auth_token, broker, feed_token=None, user_id=None, revoke=
     encrypted_feed_token = encrypt_token(feed_token) if feed_token else None
 
     auth_obj = Auth.query.filter_by(name=name).first()
+
+    # Decide whether the broker session MATERIALLY changed. A multi-device /
+    # multi-session login re-persists the SAME token (the login path resumes an
+    # existing valid broker session — see blueprints/auth._try_resume_broker_session),
+    # and OpenAlgo is single-user/single-broker per instance, so all devices share
+    # ONE server-side broker WebSocket feed. Tearing that feed down on an unchanged
+    # token kills the stream for the already-connected device until it refreshes
+    # (Shoonya) and, on Finvasia/Noren brokers that allow a single active session,
+    # drops the broker token entirely (Flattrade). See issue #1591. Fernet ciphertext
+    # is non-deterministic, so compare DECRYPTED plaintext, not the encrypted blobs.
+    token_changed = True
+    if auth_obj is not None:
+        try:
+            prev_token = decrypt_token(auth_obj.auth) if auth_obj.auth else None
+        except Exception:
+            prev_token = None  # undecryptable (e.g. post pepper/salt rotation) -> treat as changed
+        try:
+            prev_feed = decrypt_token(auth_obj.feed_token) if auth_obj.feed_token else None
+        except Exception:
+            prev_feed = None
+        token_changed = (
+            prev_token != auth_token
+            or prev_feed != feed_token
+            or auth_obj.broker != broker
+            or bool(auth_obj.is_revoked) != bool(revoke)
+        )
+
     if auth_obj:
         auth_obj.auth = encrypted_token
         auth_obj.feed_token = encrypted_feed_token
@@ -536,10 +564,26 @@ def upsert_auth(name, auth_token, broker, feed_token=None, user_id=None, revoke=
     # Without clearing all entries, old cached tokens from get_auth_token_broker()
     # would persist and cause 401 Unauthorized errors after re-login.
     # See GitHub issue #851 for details on this cache key mismatch bug.
+    # This is cheap and always safe — do it unconditionally so reads stay correct.
     auth_cache.clear()
     feed_token_cache.clear()
     broker_cache.clear()  # Also clear broker cache to ensure fresh data
     logger.info(f"Cleared all auth caches after token update for user: {name}")
+
+    # The two operations below TEAR DOWN the shared broker WebSocket feed (the
+    # ZeroMQ publish reaches the out-of-process proxy's _handle_cache_invalidation,
+    # which disconnects the adapter + pool; the in-process call does the same on the
+    # single-process dev server). They are only correct when the token actually
+    # changed (real login, daily token rollover, logout/revoke). On an unchanged
+    # token (multi-device session resume) we must SKIP them so a second device
+    # logging in does not interrupt the first device's live stream. See issue #1591
+    # (and #1394/#765/#851 for why the teardown exists in the first place).
+    if not (token_changed or revoke):
+        logger.info(
+            f"Broker token unchanged for {name} (multi-session resume) — "
+            f"preserving live WebSocket feed, skipping pool teardown"
+        )
+        return auth_obj.id
 
     # Publish cache invalidation event via ZeroMQ for other processes
     # This notifies WebSocket proxy and other processes to clear their stale caches
@@ -567,6 +611,24 @@ def upsert_auth(name, auth_token, broker, feed_token=None, user_id=None, revoke=
         # Don't fail auth on cleanup error — the user can still trade via
         # HTTP endpoints; only the WS layer is affected.
         logger.warning(f"Failed to invalidate WS adapter pool for {name}/{broker}: {e}")
+
+    # Order-update adapter lifecycle (services/order_update_service.py): the
+    # always-on broker order-feed follows the same real-token-change gate as
+    # the teardown above — restart with fresh credentials on change, stop on
+    # revoke, and (by virtue of the early return above) stay untouched on a
+    # multi-session resume.
+    try:
+        from services.order_update_service import (
+            start_order_update_adapter,
+            stop_order_update_adapter,
+        )
+
+        if revoke:
+            stop_order_update_adapter(name)
+        else:
+            start_order_update_adapter(name, broker)
+    except Exception as e:
+        logger.warning(f"Order-update adapter lifecycle failed for {name}/{broker}: {e}")
 
     return auth_obj.id
 

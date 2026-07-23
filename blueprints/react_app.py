@@ -151,6 +151,12 @@ def react_holdings():
     return serve_react_app()
 
 
+# Scalping Terminal
+@react_bp.route("/scalping", strict_slashes=False)
+def react_scalping():
+    return serve_react_app()
+
+
 # Search pages
 @react_bp.route("/search/token")
 def react_search_token():
@@ -168,6 +174,12 @@ def react_search():
 # Playground
 @react_bp.route("/playground")
 def react_playground():
+    return serve_react_app()
+
+
+# Charting terminal (line-based chart trading, powered by openalgo-charts)
+@react_bp.route("/trading", strict_slashes=False)
+def react_trading():
     return serve_react_app()
 
 
@@ -218,6 +230,13 @@ def react_oitracker():
     return serve_react_app()
 
 
+# Chart test page (dev/testing only) - 1m history + live forming candle.
+# Intentionally not linked from any menu; reachable only by direct URL.
+@react_bp.route("/chart/test")
+def react_chart_test():
+    return serve_react_app()
+
+
 # Max Pain analysis
 @react_bp.route("/maxpain")
 def react_maxpain():
@@ -251,6 +270,12 @@ def react_ivsmile():
 # OI Profile - Open Interest Profile with futures candles
 @react_bp.route("/oiprofile")
 def react_oiprofile():
+    return serve_react_app()
+
+
+# Arbitrage - Futures calendar-spread scanner
+@react_bp.route("/arbitrage")
+def react_arbitrage():
     return serve_react_app()
 
 

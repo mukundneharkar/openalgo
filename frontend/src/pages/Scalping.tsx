@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { scalpingApi } from '@/api/scalping'
 import { type QuotesData, tradingApi } from '@/api/trading'
+import { ScalpChart } from '@/components/scalping/ScalpChart'
 import { SetSLDialog } from '@/components/scalping/SetSLDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useMarketData } from '@/hooks/useMarketData'
 import { useOrderEventRefresh } from '@/hooks/useOrderEventRefresh'
 import { findLegSL, type SLState, useTrailingSL } from '@/hooks/useTrailingSL'
+import { priceDecimals } from '@/lib/scalpingPrice'
 import { buildPositionRows } from '@/lib/scalpingRows'
 import { mergeTick, type TickView } from '@/lib/scalpingTick'
 import { useAuthStore } from '@/stores/authStore'
@@ -48,6 +50,12 @@ const DEFAULT_STRIKE_COUNT = 10
 const MAX_LOTS = 20
 const ORDER_COOLDOWN_MS = 120 // min gap between two order fires (anti double-fire)
 const ARMED_STORAGE_KEY = 'scalping.armed'
+// Live charts are OFF by default (opt-in). Three live candlestick charts each
+// open their own market-data subscription and poll broker history, so keeping
+// them off unless wanted spares CPU/network. The choice persists across reloads.
+const CHARTS_STORAGE_KEY = 'scalping.showCharts'
+const CHART_TF_STORAGE_KEY = 'scalping.chartTf'
+const CHART_TIMEFRAMES = ['1m', '5m', '15m'] as const
 
 // NSE/BSE = equity; NFO/BFO/MCX/CDS = derivatives (options + futures).
 type ScalpingExchange = 'NSE' | 'BSE' | 'NFO' | 'BFO' | 'MCX' | 'CDS'
@@ -88,6 +96,11 @@ const BOOK_EVENTS = [
 // A WebSocket tick considered stale after this -> fall back to MultiQuotes.
 const TICK_STALE_MS = 5000
 
+// Collapse rapid book-refresh triggers (multi-leg entries, and the SocketIO order events
+// for several legs arriving together) into at most one refetch per window, so we don't
+// hammer the broker's order/trade/position endpoints.
+const REFRESH_THROTTLE_MS = 400
+
 // Which leg/product the Set-SL dialog is editing.
 interface SLTarget {
   symbol: string
@@ -103,6 +116,27 @@ function loadArmed(): boolean {
   } catch {
     return false
   }
+}
+
+// Read the persisted charts on/off preference. Defaults to OFF (charts are
+// opt-in) — a missing key reads as off.
+function loadShowCharts(): boolean {
+  try {
+    return localStorage.getItem(CHARTS_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+// Read the persisted chart timeframe, falling back to 1m if unset/invalid.
+function loadChartTf(): string {
+  try {
+    const v = localStorage.getItem(CHART_TF_STORAGE_KEY)
+    if (v && (CHART_TIMEFRAMES as readonly string[]).includes(v)) return v
+  } catch {
+    // ignore storage failures (private mode, etc.)
+  }
+  return '1m'
 }
 
 // Pull the trader-friendly reason out of an API error (e.g. the broker/sandbox
@@ -139,6 +173,7 @@ interface TickerProps {
   open?: number
   high?: number
   low?: number
+  decimals?: number
 }
 
 const pctInRange = (v: number, low: number, high: number) =>
@@ -150,11 +185,13 @@ function RangeBar({
   open,
   high,
   low,
+  decimals = 2,
 }: {
   ltp?: number
   open?: number
   high?: number
   low?: number
+  decimals?: number
 }) {
   if (ltp == null || high == null || low == null || high <= low) {
     return <div className="my-3 h-px w-full bg-border" />
@@ -164,21 +201,21 @@ function RangeBar({
   return (
     <div className="my-1">
       <div className="flex justify-between font-mono text-[11px] text-muted-foreground">
-        <span>L: {low.toFixed(2)}</span>
-        <span>{high.toFixed(2)} :H</span>
+        <span>L: {low.toFixed(decimals)}</span>
+        <span>{high.toFixed(decimals)} :H</span>
       </div>
       <div className="relative my-2 h-1 rounded bg-muted">
         {openPct != null && (
           <span
             className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 h-2.5 w-2.5 rounded-full border-2 border-muted-foreground bg-background"
             style={{ left: `${openPct}%` }}
-            title={`Open ${open?.toFixed(2)}`}
+            title={`Open ${open?.toFixed(decimals)}`}
           />
         )}
         <span
           className="-translate-x-1/2 -top-1 absolute text-[10px] text-foreground"
           style={{ left: `${ltpPct}%` }}
-          title={`LTP ${ltp.toFixed(2)}`}
+          title={`LTP ${ltp.toFixed(decimals)}`}
         >
           ▲
         </span>
@@ -187,7 +224,17 @@ function RangeBar({
   )
 }
 
-function Ticker({ title, symbol, ltp, change, changePercent, open, high, low }: TickerProps) {
+function Ticker({
+  title,
+  symbol,
+  ltp,
+  change,
+  changePercent,
+  open,
+  high,
+  low,
+  decimals = 2,
+}: TickerProps) {
   const isUp = (changePercent ?? change ?? 0) >= 0
   return (
     <Card>
@@ -196,22 +243,22 @@ function Ticker({ title, symbol, ltp, change, changePercent, open, high, low }: 
       </CardHeader>
       <CardContent>
         <div className="font-mono text-xs text-muted-foreground">{symbol ?? '—'}</div>
-        <RangeBar ltp={ltp} open={open} high={high} low={low} />
+        <RangeBar ltp={ltp} open={open} high={high} low={low} decimals={decimals} />
         <div className="flex items-baseline gap-2">
           <span className="font-mono text-2xl font-semibold tabular-nums">
-            {ltp != null ? ltp.toFixed(2) : '—'}
+            {ltp != null ? ltp.toFixed(decimals) : '—'}
           </span>
           {(change != null || changePercent != null) && (
             <span className={`font-mono text-sm ${isUp ? 'text-green-600' : 'text-red-600'}`}>
               {isUp ? '+' : ''}
-              {change != null ? change.toFixed(2) : ''}
+              {change != null ? change.toFixed(decimals) : ''}
               {changePercent != null ? ` (${changePercent.toFixed(2)}%)` : ''}
             </span>
           )}
         </div>
         {open != null && (
           <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-            O {open.toFixed(2)}
+            O {open.toFixed(decimals)}
           </div>
         )}
       </CardContent>
@@ -251,6 +298,16 @@ export default function Scalping() {
   const [product, setProduct] = useState<ScalpingProduct>('NRML')
   const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null)
 
+  // Live charts are opt-in (default off) and heavy — when off, the ScalpChart
+  // components don't mount, so they open no feed subscriptions. Both this toggle
+  // and the timeframe below persist browser-side so the terminal reopens the way
+  // you left it.
+  const [showCharts, setShowCharts] = useState<boolean>(loadShowCharts)
+
+  // Shared timeframe for the live charts (OpenAlgo interval format). One switch
+  // flips every chart (CE / underlying / PE, or the single instrument) at once.
+  const [chartTf, setChartTf] = useState<string>(loadChartTf)
+
   // Global predefined SL / Target — when enabled, auto-attached to every new entry.
   // Value is in points or percent of entry (default points).
   const [predefSlOn, setPredefSlOn] = useState(false)
@@ -267,6 +324,23 @@ export default function Scalping() {
       // ignore storage failures (private mode, etc.)
     }
   }, [armed])
+
+  // Persist the charts on/off and timeframe choices browser-side.
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHARTS_STORAGE_KEY, showCharts ? '1' : '0')
+    } catch {
+      // ignore storage failures (private mode, etc.)
+    }
+  }, [showCharts])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHART_TF_STORAGE_KEY, chartTf)
+    } catch {
+      // ignore storage failures (private mode, etc.)
+    }
+  }, [chartTf])
 
   // Exchange change: equity → EQUITY segment; F&O → keep Options/Futures (default
   // Options) + default underlying. Reset transient selections.
@@ -465,15 +539,40 @@ export default function Scalping() {
     [trades, trackedKeys]
   )
 
+  // Throttled (leading + trailing): the first trigger refetches immediately, and any
+  // further triggers within REFRESH_THROTTLE_MS collapse into a single trailing refetch.
+  // This de-dups the order's success path + its SocketIO event and bounds multi-leg bursts.
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastRefreshRef = useRef(0)
   const refreshBooks = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['scalping', 'positions'] })
-    queryClient.invalidateQueries({ queryKey: ['scalping', 'orders'] })
-    queryClient.invalidateQueries({ queryKey: ['scalping', 'trades'] })
-    queryClient.invalidateQueries({ queryKey: ['scalping', 'tracked'] })
+    const run = () => {
+      lastRefreshRef.current = Date.now()
+      queryClient.invalidateQueries({ queryKey: ['scalping', 'positions'] })
+      queryClient.invalidateQueries({ queryKey: ['scalping', 'orders'] })
+      queryClient.invalidateQueries({ queryKey: ['scalping', 'trades'] })
+      queryClient.invalidateQueries({ queryKey: ['scalping', 'tracked'] })
+    }
+    const since = Date.now() - lastRefreshRef.current
+    if (since >= REFRESH_THROTTLE_MS) {
+      run()
+    } else if (refreshTimerRef.current == null) {
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null
+        run()
+      }, REFRESH_THROTTLE_MS - since)
+    }
   }, [queryClient])
 
-  // Refresh the books on order/position events instead of polling.
-  useOrderEventRefresh(refreshBooks, { events: [...BOOK_EVENTS] })
+  // Clear any pending trailing refetch on unmount (timer hygiene).
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current != null) clearTimeout(refreshTimerRef.current)
+    }
+  }, [])
+
+  // Refresh the books on order/position events instead of polling. The short delay lets
+  // the server finish persisting before we refetch (was 500ms; 150ms keeps the UI snappy).
+  useOrderEventRefresh(refreshBooks, { events: [...BOOK_EVENTS], delay: 150 })
 
   // Subscribe the live feed for underlying (Quote, for %chg), CE/PE legs, AND
   // every symbol in the position book — so book LTP and P&L update in realtime.
@@ -752,6 +851,9 @@ export default function Scalping() {
       // analyzer_update in analyzer mode. We don't toast success here (latency is
       // in the header). We only toast an error in LIVE mode, where the backend
       // emits no socket event on failure, or on a transport error (no response).
+      // The live LTP from the WS feed — sent so the sandbox engine can price the fill
+      // without its own (slow, retry-prone) per-order quote fetch. Ignored in live mode.
+      const legLtp = marketDataRef.current.get(`${leg.exchange}:${leg.symbol}`)?.data?.ltp
       try {
         const res = await scalpingApi.placeOrder({
           symbol: leg.symbol,
@@ -760,11 +862,13 @@ export default function Scalping() {
           quantity,
           product: s.product,
           lots: sentLots,
+          ltp: legLtp != null && legLtp > 0 ? legLtp : undefined,
         })
         setLastLatencyMs(Math.round(performance.now() - t0))
         if (res.status === 'success') {
           attachPredefinedSL(leg, action, quantity, s.product)
-          refreshBooks()
+          // Books refresh from this order's SocketIO event (order_event / analyzer_update)
+          // via useOrderEventRefresh — no manual refetch here, to avoid a double refresh.
         } else if (s.appMode === 'live') {
           showToast.error(res.message ?? 'Order failed', 'orders')
         }
@@ -774,7 +878,7 @@ export default function Scalping() {
         if (!handledGlobally) showToast.error(apiErrorMessage(e), 'orders')
       }
     },
-    [refreshBooks, attachPredefinedSL]
+    [attachPredefinedSL]
   )
 
   // Note: close-all / cancel-all (F6/F7) and the trailing-SL auto-exit are
@@ -1176,6 +1280,7 @@ export default function Scalping() {
             open={singleTick?.open}
             high={singleTick?.high}
             low={singleTick?.low}
+            decimals={priceDecimals(singleLeg?.exchange)}
           />
         </div>
       ) : (
@@ -1189,6 +1294,7 @@ export default function Scalping() {
             open={ceTick?.open}
             high={ceTick?.high}
             low={ceTick?.low}
+            decimals={priceDecimals(ceLeg?.exchange ?? foExchange)}
           />
           <Ticker
             title={underlying || 'Underlying'}
@@ -1199,6 +1305,7 @@ export default function Scalping() {
             open={underlyingTick?.open}
             high={underlyingTick?.high}
             low={underlyingTick?.low}
+            decimals={priceDecimals(underlyingExch)}
           />
           <Ticker
             title="Put (PE)"
@@ -1209,9 +1316,82 @@ export default function Scalping() {
             open={peTick?.open}
             high={peTick?.high}
             low={peTick?.low}
+            decimals={priceDecimals(peLeg?.exchange ?? foExchange)}
           />
         </div>
       )}
+
+      {/* Live charts (candles + volume + OHLC legend), shared timeframe. Charts
+          are off by default and only mount when toggled on — off means no chart
+          feed subscriptions. The Charts switch + timeframe both persist. */}
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="flex items-center gap-2">
+          <Switch checked={showCharts} onCheckedChange={setShowCharts} />
+          <span className="text-sm font-medium">Charts</span>
+        </label>
+        {showCharts && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Timeframe</span>
+            <div className="inline-flex items-center rounded-md border p-0.5">
+              {CHART_TIMEFRAMES.map((tf) => (
+                <button
+                  type="button"
+                  key={tf}
+                  onClick={() => setChartTf(tf)}
+                  className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                    chartTf === tf
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showCharts &&
+        (isSingle ? (
+          <div className="grid grid-cols-1 gap-3">
+            <div className="h-[340px]">
+              <ScalpChart
+                symbol={singleLeg?.symbol ?? ''}
+                exchange={singleLeg?.exchange ?? ''}
+                interval={chartTf}
+                title={segment === 'EQUITY' ? 'Equity' : 'Futures'}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="h-[340px]">
+              <ScalpChart
+                symbol={ceLeg?.symbol ?? ''}
+                exchange={ceLeg?.exchange ?? ''}
+                interval={chartTf}
+                title="Call (CE)"
+              />
+            </div>
+            <div className="h-[340px]">
+              <ScalpChart
+                symbol={underlyingSym}
+                exchange={underlyingExch}
+                interval={chartTf}
+                title={underlying || 'Underlying'}
+              />
+            </div>
+            <div className="h-[340px]">
+              <ScalpChart
+                symbol={peLeg?.symbol ?? ''}
+                exchange={peLeg?.exchange ?? ''}
+                interval={chartTf}
+                title="Put (PE)"
+              />
+            </div>
+          </div>
+        ))}
 
       {/* Order entry */}
       <Card>
@@ -1490,6 +1670,7 @@ export default function Scalping() {
               <TableBody>
                 {positionRows.map((r) => {
                   const open = r.netQty !== 0
+                  const dec = priceDecimals(r.exchange)
                   return (
                     <TableRow key={`${r.exchange}:${r.symbol}:${r.product}`}>
                       <TableCell className="font-mono text-sm">{r.symbol}</TableCell>
@@ -1509,13 +1690,13 @@ export default function Scalping() {
                         {r.netQty}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
-                        {r.ltp ? r.ltp.toFixed(2) : '—'}
+                        {r.ltp ? r.ltp.toFixed(dec) : '—'}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
-                        {r.sl != null ? r.sl.toFixed(2) : '-'}
+                        {r.sl != null ? r.sl.toFixed(dec) : '-'}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
-                        {r.target != null ? r.target.toFixed(2) : '-'}
+                        {r.target != null ? r.target.toFixed(dec) : '-'}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
                         {r.trailingStep != null ? `±${r.trailingStep}` : '-'}
@@ -1565,16 +1746,16 @@ export default function Scalping() {
                         )}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
-                        {r.avgPrice ? r.avgPrice.toFixed(2) : '—'}
+                        {r.avgPrice ? r.avgPrice.toFixed(dec) : '—'}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
                         {r.buyQty}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
-                        {r.buyAvg ? r.buyAvg.toFixed(2) : '—'}
+                        {r.buyAvg ? r.buyAvg.toFixed(dec) : '—'}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
-                        {r.sellAvg ? r.sellAvg.toFixed(2) : '—'}
+                        {r.sellAvg ? r.sellAvg.toFixed(dec) : '—'}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
                         {r.sellQty}
@@ -1650,7 +1831,7 @@ export default function Scalping() {
                   </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{t.quantity}</TableCell>
                   <TableCell className="text-right font-mono tabular-nums">
-                    {t.average_price?.toFixed(2)}
+                    {Number(t.average_price || 0).toFixed(priceDecimals(t.exchange))}
                   </TableCell>
                   <TableCell className="font-mono text-xs">{t.orderid}</TableCell>
                 </TableRow>

@@ -35,6 +35,13 @@ const tools = [
     color: 'bg-blue-500',
   },
   {
+    title: 'OI Range',
+    description:
+      'Open Interest by strike for a custom range with ATM-relative quick selectors and optional 1-minute auto-refresh',
+    href: '/oirange',
+    color: 'bg-sky-500',
+  },
+  {
     title: 'Max Pain',
     description: 'Max Pain strike calculation with visual pain distribution across strikes',
     href: '/maxpain',
@@ -68,6 +75,13 @@ const tools = [
     color: 'bg-indigo-500',
   },
   {
+    title: 'Gamma Density',
+    description:
+      'Γ×OI density and convexity zones with intraday & to-expiry views, ATM IV, and ±1σ/±2σ expected-move bands',
+    href: '/gammadensity',
+    color: 'bg-lime-500',
+  },
+  {
     title: 'IV Smile',
     description: 'Implied Volatility smile with Call/Put IV curves, ATM IV, and skew analysis',
     href: '/ivsmile',
@@ -78,6 +92,13 @@ const tools = [
     description: 'Futures candlestick with OI butterfly and daily OI change across strikes',
     href: '/oiprofile',
     color: 'bg-orange-500',
+  },
+  {
+    title: 'Arbitrage',
+    description:
+      'Realtime futures calendar-spread scanner across NFO & MCX, ranked by executable bid/ask spread % with one-click two-leg orders',
+    href: '/arbitrage',
+    color: 'bg-green-600',
   },
 ]
 

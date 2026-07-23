@@ -7,6 +7,27 @@ import os
 import re
 import sys
 
+
+def _ensure_db_directory() -> None:
+    """Create the SQLite database directory before any engine connects.
+
+    On a fresh install ``db/`` does not exist yet, and the database engines (and
+    their background threads) are created/used in parallel during startup. The
+    first connection then fails with ``unable to open database file``, which can
+    leave a database partially initialized. Creating the directory up front, before
+    any database module is imported, removes that race. Derived from DATABASE_URL
+    (all SQLite databases live under the same directory).
+    """
+    db_url = os.getenv("DATABASE_URL", "sqlite:///db/openalgo.db")
+    if db_url.startswith("sqlite:///"):
+        db_path = db_url.replace("sqlite:///", "", 1)
+        db_dir = os.path.dirname(os.path.abspath(db_path))
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+
+
+_ensure_db_directory()
+
 # Show loading indicator early (before heavy imports) so user sees immediate feedback.
 # The full banner with "Ready" status prints later, right before the server accepts connections.
 if __name__ == "__main__":
@@ -29,59 +50,64 @@ from flask_wtf.csrf import CSRFProtect  # Import CSRF protection
 from blueprints.admin import admin_bp  # Import the admin blueprint
 from blueprints.analyzer import analyzer_bp  # Import the analyzer blueprint
 from blueprints.apikey import api_key_bp
+from blueprints.arbitrage import arbitrage_bp  # Import the Arbitrage blueprint
 from blueprints.auth import auth_bp
 from blueprints.brlogin import brlogin_bp
 from blueprints.broker_credentials import (
     broker_credentials_bp,  # Import the broker credentials blueprint
 )
+from blueprints.chart_test import chart_test_bp  # Standalone chart test page (dev/testing only)
 from blueprints.chartink import chartink_bp  # Import the chartink blueprint
-from blueprints.strategy_portfolio import strategy_portfolio_bp  # Strategy Builder portfolio
 from blueprints.core import core_bp
+from blueprints.custom_straddle import custom_straddle_bp  # Import custom straddle blueprint
 from blueprints.dashboard import dashboard_bp
 from blueprints.flow import flow_bp  # Import the flow blueprint
+from blueprints.gamma_density import gamma_density_bp  # Import the Gamma Density blueprint
 from blueprints.gc_json import gc_json_bp
 from blueprints.gex import gex_bp  # Import the GEX blueprint
-from blueprints.ivsmile import ivsmile_bp  # Import the IV Smile blueprint
-from blueprints.oiprofile import oiprofile_bp  # Import the OI Profile blueprint
+from blueprints.health import health_bp  # Import the health monitoring blueprint
 from blueprints.historify import historify_bp  # Import the historify blueprint
 from blueprints.ivchart import ivchart_bp  # Import the IV chart blueprint
-from blueprints.scalping import scalping_bp  # Import the Scalping terminal blueprint
-from blueprints.oitracker import oitracker_bp  # Import the OI tracker blueprint
-from blueprints.straddle_chart import straddle_bp  # Import the straddle chart blueprint
-from blueprints.strategy_chart import strategy_chart_bp  # Import the strategy chart blueprint
-from blueprints.custom_straddle import custom_straddle_bp  # Import custom straddle blueprint
-from blueprints.vol_surface import vol_surface_bp  # Import the vol surface blueprint
+from blueprints.ivsmile import ivsmile_bp  # Import the IV Smile blueprint
 from blueprints.latency import latency_bp  # Import the latency blueprint
 from blueprints.leverage import leverage_bp  # Import the leverage blueprint
-from blueprints.health import health_bp  # Import the health monitoring blueprint
 from blueprints.log import log_bp
 from blueprints.logging import logging_bp  # Import the logging blueprint
 from blueprints.master_contract_status import (
     master_contract_status_bp,  # Import the master contract status blueprint
 )
+from blueprints.oiprofile import oiprofile_bp  # Import the OI Profile blueprint
+from blueprints.oitracker import oitracker_bp  # Import the OI tracker blueprint
 from blueprints.orders import orders_bp
 from blueprints.platforms import platforms_bp
 from blueprints.playground import playground_bp  # Import the API playground blueprint
+from blueprints.postback import postback_bp  # Import broker postback (order updates) blueprint
 from blueprints.pnltracker import pnltracker_bp  # Import the pnl tracker blueprint
-from blueprints.python_strategy import python_strategy_bp, initialize_with_app_context as init_python_strategy  # Import the python strategy blueprint
+from blueprints.python_strategy import initialize_with_app_context as init_python_strategy
+from blueprints.python_strategy import python_strategy_bp  # Import the python strategy blueprint
 from blueprints.react_app import (  # Import React frontend blueprint
     is_react_frontend_available,
     react_bp,
     serve_react_app,
 )
 from blueprints.sandbox import sandbox_bp  # Import the sandbox blueprint
+from blueprints.scalping import scalping_bp  # Import the Scalping terminal blueprint
 from blueprints.search import search_bp
 from blueprints.security import security_bp  # Import the security blueprint
 from blueprints.settings import settings_bp  # Import the settings blueprint
+from blueprints.straddle_chart import straddle_bp  # Import the straddle chart blueprint
 from blueprints.strategy import strategy_bp  # Import the strategy blueprint
+from blueprints.strategy_chart import strategy_chart_bp  # Import the strategy chart blueprint
+from blueprints.strategy_portfolio import strategy_portfolio_bp  # Strategy Builder portfolio
 from blueprints.system_permissions import (
     system_permissions_bp,  # Import the system permissions blueprint
 )
 from blueprints.telegram import telegram_bp  # Import the telegram blueprint
 from blueprints.traffic import traffic_bp  # Import the traffic blueprint
-from blueprints.whatsapp import whatsapp_bp  # Import the WhatsApp blueprint
 from blueprints.tv_json import tv_json_bp
+from blueprints.vol_surface import vol_surface_bp  # Import the vol surface blueprint
 from blueprints.websocket_example import websocket_bp  # Import the websocket example blueprint
+from blueprints.whatsapp import whatsapp_bp  # Import the WhatsApp blueprint
 from cors import cors  # Import the CORS instance
 from csp import apply_csp_middleware  # Import the CSP middleware
 from database.action_center_db import init_db as ensure_action_center_tables_exists
@@ -109,8 +135,8 @@ from limiter import limiter  # Import the Limiter instance
 from restx_api import api, api_v1_bp
 from services.broker_keepalive_service import start_broker_keepalive
 from services.telegram_bot_service import telegram_bot_service
-from utils.latency_monitor import init_latency_monitoring  # Import latency monitoring
 from utils.health_monitor import init_health_monitoring  # Import health monitoring
+from utils.latency_monitor import init_latency_monitoring  # Import latency monitoring
 from utils.logging import (  # Import centralized logging
     get_logger,
     highlight_url,
@@ -275,6 +301,7 @@ def create_app():
     app.register_blueprint(strategy_bp)
     app.register_blueprint(master_contract_status_bp)
     app.register_blueprint(websocket_bp)  # Register WebSocket example blueprint
+    app.register_blueprint(chart_test_bp)  # Register standalone chart test page (dev/testing only)
     app.register_blueprint(pnltracker_bp)  # Register PnL tracker blueprint
     app.register_blueprint(python_strategy_bp)  # Register Python strategy blueprint
     app.register_blueprint(telegram_bp)  # Register Telegram blueprint
@@ -288,6 +315,7 @@ def create_app():
     app.register_blueprint(ivchart_bp)  # Register IV chart blueprint
     app.register_blueprint(scalping_bp)  # Register Scalping terminal blueprint
     app.register_blueprint(oitracker_bp)  # Register OI tracker blueprint
+    app.register_blueprint(gamma_density_bp)  # Register Gamma Density blueprint
     app.register_blueprint(straddle_bp)  # Register straddle chart blueprint
     app.register_blueprint(strategy_chart_bp)  # Register strategy chart blueprint
     app.register_blueprint(custom_straddle_bp)  # Register custom straddle blueprint
@@ -295,10 +323,12 @@ def create_app():
     app.register_blueprint(gex_bp)  # Register GEX blueprint
     app.register_blueprint(ivsmile_bp)  # Register IV Smile blueprint
     app.register_blueprint(oiprofile_bp)  # Register OI Profile blueprint
+    app.register_blueprint(arbitrage_bp)  # Register Arbitrage blueprint
     app.register_blueprint(flow_bp)  # Register Flow blueprint
     app.register_blueprint(broker_credentials_bp)  # Register Broker credentials blueprint
     app.register_blueprint(system_permissions_bp)  # Register System permissions blueprint
     app.register_blueprint(strategy_portfolio_bp)  # Register Strategy Portfolio blueprint
+    app.register_blueprint(postback_bp)  # Register broker postback (order-update webhook) blueprint
 
     # Remote MCP (HTTP + OAuth) — opt-in via MCP_HTTP_ENABLED. Off by default.
     # Pre-flight refusal: must NEVER coexist with FLASK_DEBUG=True (debug-mode
@@ -390,6 +420,10 @@ def create_app():
         # Exempt webhook endpoints from CSRF protection
         csrf.exempt(app.view_functions["chartink_bp.webhook"])
         csrf.exempt(app.view_functions["strategy_bp.webhook"])
+        # Broker postbacks are machine-to-machine POSTs — brokers cannot carry
+        # a CSRF token; validation is per-broker (active-session match +
+        # Zerodha checksum) inside blueprints/postback.py.
+        csrf.exempt(app.view_functions["postback_bp.broker_postback"])
         csrf.exempt(app.view_functions["flow.trigger_webhook"])
         csrf.exempt(app.view_functions["flow.trigger_webhook_with_symbol"])
 
@@ -419,6 +453,24 @@ def create_app():
         # Keep the pooled broker HTTP connection warm during market hours so
         # orders never pay a fresh TCP+TLS handshake after an idle gap
         start_broker_keepalive()
+
+        # Signal for "background DB table creation has finished". Created here
+        # rather than in setup_environment() because the order-update boot
+        # thread started just below has to wait on it, and it runs before
+        # setup_environment() is ever called. setup_environment() reuses this
+        # same event instead of replacing it.
+        import threading as _th
+
+        app.db_ready = _th.Event()
+
+        # Start real-time order-update adapters for any existing broker
+        # session (broker order-WS / postback ingestion -> OrderUpdateEvent ->
+        # socketio + websocket_proxy relay). Runs on a background thread that
+        # warms the ZMQ publisher immediately, then waits for db_ready before
+        # touching the auth table.
+        from services.order_update_service import start_order_update_adapters_on_boot
+
+        start_order_update_adapters_on_boot(db_ready=app.db_ready)
 
         # NOTE: Python strategy scheduler is initialized in setup_environment()
         # AFTER database tables are created, to avoid "no such table" errors on fresh install
@@ -609,8 +661,12 @@ def setup_environment(app):
     # Tables already exist after first run; this is a safety check
     import threading
 
-    # Event to signal when DB init is complete (cache restoration waits on this)
-    app.db_ready = threading.Event()
+    # Event to signal when DB init is complete (cache restoration and the
+    # order-update boot scan wait on this). create_app() already created it so
+    # the order-update thread could take a reference; only create one here if
+    # setup_environment is somehow called against an app that skipped that.
+    if not hasattr(app, "db_ready"):
+        app.db_ready = threading.Event()
 
     def _init_databases_and_schedulers():
         with app.app_context():
@@ -831,6 +887,7 @@ setup_environment(app)
 
 # Restore caches from database in background (not needed until first trade/lookup)
 import threading
+
 
 def _restore_caches_background():
     # Wait for DB tables to be created before querying

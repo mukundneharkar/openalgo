@@ -18,6 +18,18 @@ All surfaces share the Sandbox engine (₹1 Crore sandbox capital, exchange-alig
 **Repository**: https://github.com/marketcalls/openalgo
 **Documentation**: https://docs.openalgo.in
 
+## Documentation Map
+
+All project documentation lives under `docs/` as markdown (the single source of
+truth). **Start from [`docs/INDEX.md`](docs/INDEX.md)** — it maps every area
+(REST API, Python SDK, indicators, user guide, BDD specs, PRDs, design, scalping,
+installation, audits) to its entry file.
+
+When answering a question, read `docs/INDEX.md` first, then open only the
+specific doc you need (progressive disclosure) instead of scanning the whole
+tree. Do **not** copy or restate docs into a second location — edit the source
+file in `docs/` and every reader sees the change.
+
 ## Security and Deployment Model
 
 - **Single user per deployment** — no multi-user, no privilege escalation. One user, one broker session per instance.
@@ -108,7 +120,7 @@ npm run format
 - `app.py` - Main Flask application entry point
 - `blueprints/` - Flask route handlers (UI and webhooks)
 - `restx_api/` - REST API endpoints (`/api/v1/`)
-- `broker/` - Broker integrations (30+ brokers), each with `api/`, `database/`, `mapping/`, `streaming/`, `plugin.json`
+- `broker/` - Broker integrations (34 brokers), each with `api/`, `database/`, `mapping/`, `streaming/`, `plugin.json`
 - `services/` - Business logic layer
 - `database/` - SQLAlchemy models and database utilities
 - `utils/` - Shared utilities and helpers
@@ -143,7 +155,7 @@ Broker API calls use `httpx` with HTTP/2 connection pooling (`utils/httpx_client
 
 ### Broker Integration Pattern
 
-All 30+ brokers follow a standardized structure in `broker/{broker_name}/`:
+All 34 brokers follow a standardized structure in `broker/{broker_name}/`:
 
 1. `api/auth_api.py` - OAuth2 or API key based authentication
 2. `api/order_api.py` - Place, modify, cancel orders
@@ -165,6 +177,50 @@ Real-time market data flows through a three-layer pipeline:
 2. **ZeroMQ Message Bus** (port 5555): Broker adapters publish normalized tick data to a ZeroMQ PUB socket. This decouples the broker feed from client delivery — the broker adapter runs independently and never blocks on slow clients.
 
 3. **Unified WebSocket Proxy Server** (`websocket_proxy/server.py`, port 8765): Subscribes to ZeroMQ, manages client WebSocket connections, handles symbol subscriptions/unsubscriptions, and delivers filtered ticks to each connected client. Includes per-symbol throttling to prevent flooding slow clients.
+
+#### ZeroMQ bus invariant — SUB binds, PUBs connect (do not break this)
+
+The ZMQ market-data bus (`ZMQ_PORT`, default 5555) is **fan-in**: the proxy's
+SUB (`websocket_proxy/server.py`) is the **single binder**, and **every publisher
+CONNECTs to it** — the broker market-data adapters (`base_adapter._connect_to_zmq_bus`
+and `connection_manager.SharedZmqPublisher.connect`) and the cache-invalidation
+publisher (`database/cache_invalidation.py`). Rules that MUST hold:
+
+- **Never make a publisher `bind()`.** Publishers connect; only the proxy SUB binds. ZMQ allows many PUBs to connect to one bound SUB (fan-in), so multiple publishers across processes share one fixed port with no contention.
+- **`ZMQ_PORT` is fixed by config and never drifts.** No port-scan, no `5555 → 5556` fallback, no runtime mutation of `os.environ["ZMQ_PORT"]`. A single instance stays on its configured port forever; `install-multi.sh` gives each instance its own `ZMQ_PORT` (`5555 + i-1`) and each stays put.
+- **Why this matters:** under gunicorn+eventlet the proxy runs *out-of-process* (a subprocess on bare-metal `install.sh`, or a separate `python -m websocket_proxy.server` on Docker `start.sh`), while the cache-invalidation publisher runs in the gunicorn process. If a publisher binds, the two processes race for the port; the loser silently slides to the next port while the SUB stays on the configured one, so **`subscribe` succeeds but no ticks are delivered** (works fine on the single-process dev server, broken only on eventlet servers — historically hard to spot). Keeping the SUB as the sole binder removes the race entirely. This applies to **all brokers** — the bus is broker-agnostic.
+
+#### Multi-session login must not tear down the shared broker feed (do not break this)
+
+OpenAlgo is single-user / single-broker per instance, but the *same* user may be
+logged in from **multiple devices/browsers at once** (`active_sessions`, cap
+`MAX_SESSIONS_PER_USER = 5`). All those sessions share **one** server-side broker
+WebSocket feed — a single connection pool keyed `{broker}_{user_id}` in
+`websocket_proxy/broker_factory.py:_POOLED_ADAPTERS`, fanned out to every browser
+client by the proxy. A second device must be able to stream **without interrupting
+the first**.
+
+The hazard: a 2nd-device login resumes the existing broker session
+(`blueprints/auth._try_resume_broker_session`) and re-persists the **same** token
+through `database.auth_db.upsert_auth`. `upsert_auth` is also what tears the shared
+feed down — it publishes a ZMQ `CACHE_INVALIDATE_ALL` (the out-of-process proxy's
+`_handle_cache_invalidation` disconnects the adapter + pool) and calls
+`cleanup_pools_for_user` in-process. That teardown is **only correct when the token
+actually changed** (real login, daily ~3 AM token rollover, logout/revoke). Rules
+that MUST hold:
+
+- **Gate the teardown on a real token change.** `upsert_auth` compares the new
+  token/feed-token/broker/revoke flag against the stored row (decrypted plaintext —
+  Fernet ciphertext is non-deterministic, so never compare the encrypted blobs). If
+  nothing material changed it clears the cheap in-process caches and returns early,
+  leaving the live feed up. Only a genuine change (or `revoke=True`) runs the
+  ZMQ-publish + `cleanup_pools_for_user` path.
+- **Why this matters:** without the gate, a 2nd-device login on the same day kills
+  the 1st device's stream until it refreshes (Shoonya), and on single-active-session
+  Finvasia/Noren brokers the disconnect/reconnect churn drops the broker token
+  entirely (Flattrade "broker session expired"). See issue #1591. The teardown
+  itself still exists for the changed-token case — do not remove it (it is the
+  #1394/#765/#851 fix); just keep it gated. This is broker-agnostic.
 
 ### Request Processing Pipeline
 
@@ -460,7 +516,7 @@ API keys are generated at `/apikey` and hashed with pepper before storage.
 
 ### Symbol Format
 
-OpenAlgo uses a standardized symbol format across all 30+ brokers. Broker-specific symbols are mapped via `broker/*/mapping/` modules and stored in the `SymToken` table.
+OpenAlgo uses a standardized symbol format across all 34 brokers. Broker-specific symbols are mapped via `broker/*/mapping/` modules and stored in the `SymToken` table.
 
 **Equity:** Just the base symbol — `INFY`, `SBIN`, `TATAMOTORS`
 
@@ -559,6 +615,9 @@ All error logging uses `logger.exception()` (not `logger.error()` + manual trace
 3. Check for TypeScript errors: `npm run build`
 
 ## Claude Code Instructions
+
+### No Icons or Emojis
+- Do not use icons or emojis anywhere: source code, comments, loggers, commit messages, PR descriptions, changelogs, release notes, or any generated text (including messages drafted for Discord, Telegram, or other channels). Use plain text labels instead.
 
 ### Frontend Build Process
 - The React frontend dist is force-committed to `main` by CI (`commit-dist` job in `.github/workflows/ci.yml`). Production servers and backend-only contributors do NOT need Node.js or npm — a plain `git pull` from `main` already brings the latest UI.

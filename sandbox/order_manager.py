@@ -592,6 +592,10 @@ class OrderManager:
                     f"Order rejected: {orderid} - {symbol} {action} {quantity} - Reason: {cnc_sell_rejection_reason}"
                 )
 
+                self._publish_order_update_event(
+                    order, order_status="rejected", rejection_reason=cnc_sell_rejection_reason
+                )
+
                 return (
                     False,
                     {
@@ -633,15 +637,38 @@ class OrderManager:
 
             logger.info(f"Order placed: {orderid} - {symbol} {action} {quantity} @ {price_type}")
 
+            # Announce the accepted order on the real-time order-update stream
+            # (order_status="open"), matching live-broker behaviour — brokers
+            # push an "open" event when an order enters their OMS. MARKET /
+            # marketable orders will follow up with "complete" moments later,
+            # exactly like a live feed does.
+            self._publish_order_update_event(order, order_status="open")
+
             # Execute orders immediately when conditions are already met
             # MARKET: always immediate, LIMIT: if marketable, SL/SL-M: if trigger already met
             # This must happen BEFORE notifying the WebSocket engine to prevent
             # duplicate execution (WebSocket tick arriving before immediate execution completes)
             if price_type == "MARKET" or (cached_quote and price_type in ["LIMIT", "SL", "SL-M"]):
                 try:
-                    from sandbox.execution_engine import ExecutionEngine
+                    from sandbox.execution_engine import ExecutionEngine, quote_looks_stale
 
                     exec_engine = ExecutionEngine()
+
+                    # Stale-quote guard (issue #1638): if the quote's LTP
+                    # contradicts its own day OHLC, skip the immediate fill and
+                    # leave the order open -- the WebSocket/polling engines will
+                    # fill it once a coherent quote arrives. MARKET orders get
+                    # the same guard inside _process_order; this covers the
+                    # marketable LIMIT / SL / SL-M branches below, which call
+                    # _execute_order directly.
+                    if cached_quote and quote_looks_stale(cached_quote):
+                        logger.warning(
+                            f"Deferring immediate execution of {orderid} ({symbol}): quote LTP "
+                            f"{cached_quote.get('ltp')} is outside its own day range "
+                            f"[{cached_quote.get('low')}, {cached_quote.get('high')}] "
+                            f"-- treating as stale (see issue #1638)"
+                        )
+                        cached_quote = None
 
                     # Use cached quote from earlier check (already fetched above)
                     if cached_quote:
@@ -943,6 +970,8 @@ class OrderManager:
 
             logger.info(f"Order cancelled: {orderid}")
 
+            self._publish_order_update_event(order, order_status="cancelled")
+
             return (
                 True,
                 {
@@ -966,6 +995,39 @@ class OrderManager:
                 },
                 500,
             )
+
+    def _publish_order_update_event(self, order, order_status, rejection_reason=""):
+        """Publish OrderUpdateEvent for a sandbox order transition (rejection
+        at placement, cancellation) so the real-time order-update channel
+        (socketio + websocket_proxy relay, see subscribers/wsproxy_subscriber.py)
+        picks it up. Error-isolated — never let event-bus failures break order
+        placement/cancellation.
+        """
+        try:
+            from events import OrderUpdateEvent
+            from utils.event_bus import bus
+
+            bus.publish(
+                OrderUpdateEvent(
+                    mode="analyze",
+                    api_type="sandbox.order_update",
+                    request_data={"user_id": self.user_id} if self.user_id else {},
+                    broker="sandbox",
+                    orderid=order.orderid,
+                    symbol=order.symbol,
+                    exchange=order.exchange,
+                    action=order.action,
+                    quantity=int(order.quantity),
+                    price=float(order.price or 0),
+                    pricetype=order.price_type or "",
+                    trigger_price=float(order.trigger_price or 0),
+                    product=order.product,
+                    order_status=order_status,
+                    rejection_reason=rejection_reason,
+                )
+            )
+        except Exception as pub_err:
+            logger.debug(f"Failed to publish OrderUpdateEvent for {order.orderid}: {pub_err}")
 
     def get_orderbook(self):
         """Get all orders for the user for current session only"""

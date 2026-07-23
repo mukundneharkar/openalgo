@@ -82,8 +82,8 @@ class SandboxOrders(Base):
     update_timestamp = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
     __table_args__ = (
-        Index("idx_user_status", "user_id", "order_status"),
-        Index("idx_symbol_exchange", "symbol", "exchange"),
+        Index("idx_sandbox_user_status", "user_id", "order_status"),
+        Index("idx_sandbox_symbol_exchange", "symbol", "exchange"),
         CheckConstraint(
             "order_status IN ('open', 'complete', 'cancelled', 'rejected')",
             name="check_order_status",
@@ -497,6 +497,16 @@ def init_default_config():
             "config_key": "smart_order_delay",
             "config_value": "0.5",
             "description": "Delay between multi-leg smart orders - Range: 0.1-10 seconds (for future use)",
+        },
+        {
+            "config_key": "expiry_settlement_timing",
+            "config_value": "expiry_day_close",
+            "description": "When expired F&O settles: 'expiry_day_close' (at exchange close on expiry day) or 'next_day' (from midnight after expiry)",
+        },
+        {
+            "config_key": "option_expiry_settlement",
+            "config_value": "ltp",
+            "description": "Expired option settlement price: 'ltp' (last traded price, keeps ITM value) or 'zero' (all options expire worthless)",
         },
         {
             "config_key": "gtt_oco_margin_mode",
