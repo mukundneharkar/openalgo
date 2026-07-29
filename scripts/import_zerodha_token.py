@@ -290,7 +290,7 @@ def update_openalgo_auth(
     if profile:
         user_id = profile.get("user_id") or profile.get("user_shortname")
 
-    return upsert_auth(
+    inserted_id = upsert_auth(
         name=openalgo_user,
         auth_token=record.kite_auth,
         broker="zerodha",
@@ -298,6 +298,35 @@ def update_openalgo_auth(
         user_id=user_id,
         revoke=False,
     )
+
+    if inserted_id is not None:
+        refresh_master_contract("zerodha")
+
+    return inserted_id
+
+
+def refresh_master_contract(broker: str) -> None:
+    """Mirror the master-contract refresh that utils.auth_utils.handle_auth_success
+    runs on a normal browser/OAuth login. Without this, a cron-only token import
+    (no browser login that day) leaves the symbol/token master contract stale.
+    """
+    try:
+        from utils.auth_utils import (
+            async_master_contract_download,
+            load_existing_master_contract,
+            should_download_master_contract,
+        )
+        from database.master_contract_status_db import init_broker_status
+
+        init_broker_status(broker)
+        should_download, reason = should_download_master_contract(broker)
+        print(f"Master contract check for {broker}: should_download={should_download} ({reason})")
+        if should_download:
+            async_master_contract_download(broker)
+        else:
+            load_existing_master_contract(broker)
+    except Exception as exc:
+        print(f"WARNING: master contract refresh failed: {exc}", file=sys.stderr)
 
 
 def get_openalgo_usernames() -> list[str]:
