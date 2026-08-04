@@ -311,6 +311,19 @@ def refresh_master_contract(broker: str) -> None:
     (no browser login that day) leaves the symbol/token master contract stale.
     """
     try:
+        # broker.*.database.master_contract_db and database.master_contract_cache_hook
+        # both call socketio.emit() unconditionally on success and failure paths.
+        # extensions.socketio is a bare SocketIO() until socketio.init_app(app) runs
+        # (normally in app.py); outside the running app process that emit() raises
+        # AttributeError on socketio.server, which corrupts an otherwise-successful
+        # refresh into a false "error". Binding it to a throwaway Flask app makes
+        # emit() a safe no-op.
+        from extensions import socketio
+        if socketio.server is None:
+            from flask import Flask
+
+            socketio.init_app(Flask(__name__))
+
         from utils.auth_utils import (
             async_master_contract_download,
             load_existing_master_contract,
